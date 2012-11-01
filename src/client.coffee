@@ -241,23 +241,23 @@ class Dropbox.Client
   #   Dropbox.Stat instance describing the newly created file, and the first
   #   parameter is null
   # @return {XMLHttpRequest} the XHR object used for this API call
-  writeFile: (path, data, options, callback) ->
+  writeFile: (path, data, options, callback, progressCallback) ->
     if (not callback) and (typeof options is 'function')
       callback = options
       options = null
 
     useForm = Dropbox.Xhr.canSendForms and typeof data is 'object'
     if useForm
-      @writeFileUsingForm path, data, options, callback
+      @writeFileUsingForm path, data, options, callback, progressCallback
     else
-      @writeFileUsingPut path, data, options, callback
+      @writeFileUsingPut path, data, options, callback, progressCallback
 
   # writeFile implementation that uses the POST /files API.
   #
   # @private
   # This method is more demanding in terms of CPU and browser support, but does
   # not require CORS preflight, so it always completes in 1 HTTP request.
-  writeFileUsingForm: (path, data, options, callback) ->
+  writeFileUsingForm: (path, data, options, callback, progressCallback) ->
     # Break down the path into a file/folder name and the containing folder.
     slashIndex = path.lastIndexOf '/'
     if slashIndex is -1
@@ -288,7 +288,8 @@ class Dropbox.Client
       fileName: fileName
       contentType: 'application/octet-stream'
     Dropbox.Xhr.multipartRequest(url, fileField, params, null,
-        (error, metadata) -> callback error, Dropbox.Stat.parse(metadata))
+        ((error, metadata) -> callback error, Dropbox.Stat.parse(metadata))
+        , progressCallback)
 
   # writeFile implementation that uses the /files_put API.
   #
@@ -296,7 +297,7 @@ class Dropbox.Client
   # This method is less demanding on CPU, and makes fewer assumptions about
   # browser support, but it takes 2 HTTP requests for binary files, because it
   # needs CORS preflight.
-  writeFileUsingPut: (path, data, options, callback) ->
+  writeFileUsingPut: (path, data, options, callback, progressCallback) ->
     url = "#{@urls.putFile}/#{@urlEncodePath(path)}"
     params = {}
     if options
@@ -309,7 +310,8 @@ class Dropbox.Client
     # TODO: locale support would edit the params here
     @oauth.addAuthParams 'POST', url, params
     Dropbox.Xhr.request2('POST', url, params, null, data, null,
-        (error, metadata) -> callback error, Dropbox.Stat.parse(metadata))
+        ((error, metadata) -> callback error, Dropbox.Stat.parse(metadata))
+        , progressCallback)
 
   # Reads the metadata of a file or folder in a user's Dropbox.
   #
@@ -441,7 +443,7 @@ class Dropbox.Client
   #   download URLs are short-lived (currently 4 hours), whereas regular URLs
   #   virtually have no expiration date (currently set to 2030); no didrect
   #   downlaod URLs can be generated for directories
-  # @option options {Boolean} long if set, the URL will not be shortened using
+  # @option options {Boolean} longUrl if set, the URL will not be shortened using
   #   Dropbox's shortner; direct download URLs aren't shortened by default
   # @param {function(?Dropbox.ApiError, ?Dropbox.PublicUrl)} callback called
   #   with the result of the /shares or /media HTTP request; if the call

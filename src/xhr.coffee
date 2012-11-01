@@ -44,8 +44,8 @@ class Dropbox.Xhr
   #   instance of the required response type (e.g., String, Blob), and the
   #   third parameter will be the JSON-parsed 'x-dropbox-metadata' header
   # @return {XMLHttpRequest} the XHR object used for this request
-  @request: (method, url, params, authHeader, callback) ->
-    @request2 method, url, params, authHeader, null, null, callback
+  @request: (method, url, params, authHeader, callback, progressCallback) ->
+    @request2 method, url, params, authHeader, null, null, callback, progressCallback
 
   # Sends off an AJAX request and requests a custom response type.
   #
@@ -71,7 +71,7 @@ class Dropbox.Xhr
   #   instance of the required response type (e.g., String, Blob), and the
   #   third parameter will be the JSON-parsed 'x-dropbox-metadata' header
   # @return {XMLHttpRequest} the XHR object used for this request
-  @request2: (method, url, params, authHeader, body, responseType, callback) ->
+  @request2: (method, url, params, authHeader, body, responseType, callback, progressCallback) ->
     paramsInUrl = method is 'GET' or body? or @ieMode
     if paramsInUrl
       queryString = DropboxXhr.urlEncode params
@@ -86,7 +86,7 @@ class Dropbox.Xhr
     else if !paramsInUrl
       headers['Content-Type'] = 'application/x-www-form-urlencoded'
       body = DropboxXhr.urlEncode params
-    DropboxXhr.xhrRequest method, url, headers, body, responseType, callback
+    DropboxXhr.xhrRequest method, url, headers, body, responseType, callback, progressCallback
 
   # Upload a file via a mulitpart/form-data method.
   #
@@ -108,7 +108,7 @@ class Dropbox.Xhr
   #   instance of the required response type (e.g., String, Blob), and the
   #   third parameter will be the JSON-parsed 'x-dropbox-metadata' header
   # @return {XMLHttpRequest} the XHR object used for this request
-  @multipartRequest: (url, fileField, params, authHeader, callback) ->
+  @multipartRequest: (url, fileField, params, authHeader, callback, progressCallback) ->
     url = [url, '?', DropboxXhr.urlEncode(params)].join ''
 
     fileData = fileField.value
@@ -133,7 +133,7 @@ class Dropbox.Xhr
               "\r\n", '--', boundary, '--', "\r\n"].join ''
     if authHeader
       headers['Authorization'] = authHeader
-    DropboxXhr.xhrRequest 'POST', url, headers, body, null, callback
+    DropboxXhr.xhrRequest 'POST', url, headers, body, null, callback, progressCallback
 
   # Generates a bounday suitable for separating multipart data.
   #
@@ -147,7 +147,7 @@ class Dropbox.Xhr
   # @see Dropbox.Xhr.request2
   # @see Dropbox.Xhr.multipartRequest
   # @return {XMLHttpRequest} the XHR object created for this request
-  @xhrRequest: (method, url, headers, body, responseType, callback) ->
+  @xhrRequest: (method, url, headers, body, responseType, callback, progressCallback) ->
     xhr = new @Request()
     if @ieMode
       xhr.onload = -> DropboxXhr.onLoad xhr, method, url, callback
@@ -156,6 +156,11 @@ class Dropbox.Xhr
       xhr.onreadystatechange = ->
         DropboxXhr.onReadyStateChange xhr, method, url, responseType, callback
 
+    if method is 'GET'
+      xhr.onprogress = progressCallback
+    else
+      xhr.upload.onprogress = progressCallback
+      
     xhr.open method, url, true
     if responseType
       if responseType is 'b'
